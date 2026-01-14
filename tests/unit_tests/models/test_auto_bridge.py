@@ -546,7 +546,7 @@ class TestAutoBridge:
             # Check artifacts were saved on rank 0
             mock_hf_model.save_artifacts.assert_called_once_with("./output_dir", original_source_path=None)
             mock_save_hf_weights.assert_called_once_with(
-                mock_megatron_model, "./output_dir", True, True, distributed_save=False, save_every_n_ranks=1
+                mock_megatron_model, "./output_dir", True, True, merge_adapter_weights=True, distributed_save=False, save_every_n_ranks=1
             )
 
     @patch("torch.distributed.get_rank", return_value=1)
@@ -569,7 +569,7 @@ class TestAutoBridge:
             # Artifacts should NOT be saved on non-zero rank
             mock_hf_model.save_artifacts.assert_not_called()
             mock_save_hf_weights.assert_called_once_with(
-                mock_megatron_model, "./output_dir", True, True, distributed_save=False, save_every_n_ranks=1
+                mock_megatron_model, "./output_dir", True, True, merge_adapter_weights=True, distributed_save=False, save_every_n_ranks=1
             )
 
     def test_export_hf_weights(self):
@@ -760,7 +760,10 @@ class TestAutoBridge:
         mock_from_hf_pretrained.assert_called_once_with("meta-llama/Meta-Llama-3-8B")
         mock_bridge.to_megatron_model.assert_called_once_with(wrap_with_ddp=False, use_cpu_initialization=True)
         mock_bridge.save_megatron_model.assert_called_once_with(
-            mock_megatron_model, "./megatron_checkpoint", hf_tokenizer_path="meta-llama/Meta-Llama-3-8B"
+            mock_megatron_model,
+            "./megatron_checkpoint",
+            hf_tokenizer_path="meta-llama/Meta-Llama-3-8B",
+            hf_tokenizer_kwargs=mock_bridge._model_bridge.get_hf_tokenizer_kwargs(),
         )
 
     @patch.object(AutoBridge, "save_megatron_model")
@@ -783,7 +786,10 @@ class TestAutoBridge:
         mock_from_hf_pretrained.assert_called_once_with("./local_model", torch_dtype=torch.float16, device_map="auto")
         mock_bridge.to_megatron_model.assert_called_once_with(wrap_with_ddp=False, use_cpu_initialization=True)
         mock_bridge.save_megatron_model.assert_called_once_with(
-            mock_megatron_model, "./megatron_checkpoint", hf_tokenizer_path="./local_model"
+            mock_megatron_model,
+            "./megatron_checkpoint",
+            hf_tokenizer_path="./local_model",
+            hf_tokenizer_kwargs=mock_bridge._model_bridge.get_hf_tokenizer_kwargs(),
         )
 
     def test_export_ckpt_basic(self):
@@ -854,7 +860,7 @@ class TestAutoBridge:
             bridge.save_megatron_model(mock_megatron_model, "./checkpoint_path")
 
             mock_save_megatron_model.assert_called_once_with(
-                mock_megatron_model, "./checkpoint_path", hf_tokenizer_path=None
+                mock_megatron_model, "./checkpoint_path", hf_tokenizer_path=None, hf_tokenizer_kwargs=None
             )
 
     def test_save_megatron_model_with_tokenizer(self):
@@ -875,7 +881,10 @@ class TestAutoBridge:
             )
 
             mock_save_megatron_model.assert_called_once_with(
-                mock_megatron_model, "./checkpoint_path", hf_tokenizer_path="meta-llama/Meta-Llama-3-8B"
+                mock_megatron_model,
+                "./checkpoint_path",
+                hf_tokenizer_path="meta-llama/Meta-Llama-3-8B",
+                hf_tokenizer_kwargs=None,
             )
 
     def test_save_megatron_model_import_error(self):

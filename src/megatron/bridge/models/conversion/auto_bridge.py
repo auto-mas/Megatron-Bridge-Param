@@ -331,6 +331,7 @@ class AutoBridge(Generic[MegatronModelT]):
         cpu: bool = False,
         show_progress: bool = True,
         conversion_tasks: Optional[List[WeightConversionTask]] = None,
+        merge_adapter_weights: bool = True,
     ) -> Iterable["HFWeightTuple"]:
         """
         Export Megatron model weights to HuggingFace format.
@@ -352,6 +353,8 @@ class AutoBridge(Generic[MegatronModelT]):
                 *Please note that this is an advanced feature and should be used with caution.
                 The tasks needs to be built with the `get_conversion_tasks` method first and
                 carefully adjust based on your needs.*
+            merge_adapter_weights: Whether to gather and merge LoRA adapter weights into the base
+                tensors during export (defaults to True). Set to False to export only the base tensors.
 
 
         Yields:
@@ -376,6 +379,35 @@ class AutoBridge(Generic[MegatronModelT]):
             cpu=cpu,
             show_progress=show_progress,
             conversion_tasks=conversion_tasks,
+            merge_adapter_weights=merge_adapter_weights,
+        )
+
+    def export_adapter_weights(
+        self,
+        model: list[MegatronModelT],
+        cpu: bool = True,
+        show_progress: bool = True,
+    ) -> Iterable["HFWeightTuple"]:
+        """
+        Export only adapter weights from a Megatron model without merging them into base tensors.
+
+        This is useful when you want to save or inspect LoRA adapters independently from the
+        underlying pretrained weights.
+
+        Args:
+            model: Megatron model instance or list of instances
+            cpu: Whether to move tensors to CPU before yielding
+            show_progress: Display progress bar during export
+
+        Yields:
+            HFWeightTuple: Named tuples of (param_name, weight_tensor) for adapter parameters
+        """
+        dispatch_instance = (self._causal_lm_architecture, self._get_model_instance(model))
+        return model_bridge.stream_adapter_weights_megatron_to_hf(
+            dispatch_instance,
+            model,
+            cpu=cpu,
+            show_progress=show_progress,
         )
 
     def save_hf_pretrained(
@@ -385,6 +417,7 @@ class AutoBridge(Generic[MegatronModelT]):
         show_progress: bool = True,
         source_path: Optional[Union[str, Path]] = None,
         strict: bool = True,
+        merge_adapter_weights: bool = True,
         distributed_save: bool = False,
         save_every_n_ranks: int = 1,
     ) -> None:
@@ -412,6 +445,7 @@ class AutoBridge(Generic[MegatronModelT]):
                 HuggingFace model with custom modeling files needs to be referenced. If not specified,
                 the path will be automatically determined from the HuggingFace configuration.
             strict: Whether to perform strict validation during weight export
+            merge_adapter_weights: Whether to gather/merge LoRA adapter weights into base tensors during export.
             distributed_save: Whether to enable distributed saving mode where each rank saves
                 part of weights independently. When False (default), only rank 0 performs
                 the save operation after gathering weights from all ranks.
@@ -447,6 +481,7 @@ class AutoBridge(Generic[MegatronModelT]):
             path,
             show_progress,
             strict,
+            merge_adapter_weights=merge_adapter_weights,
             distributed_save=distributed_save,
             save_every_n_ranks=save_every_n_ranks,
         )
@@ -457,6 +492,7 @@ class AutoBridge(Generic[MegatronModelT]):
         path: str | Path,
         show_progress: bool = True,
         strict: bool = True,
+        merge_adapter_weights: bool = True,
         distributed_save: bool = False,
         save_every_n_ranks: int = 1,
     ) -> None:
@@ -479,6 +515,7 @@ class AutoBridge(Generic[MegatronModelT]):
             model: Megatron model instance or list of instances
             path: Directory path where weight files will be saved
             show_progress: Display progress bar during export
+            merge_adapter_weights: Whether to gather/merge LoRA adapter weights into base tensors during export.
             distributed_save: Whether to enable distributed saving mode where each rank saves
                 part of weights independently.
             save_every_n_ranks: Interval for saving weights across ranks in distributed mode.
@@ -504,7 +541,12 @@ class AutoBridge(Generic[MegatronModelT]):
             dist.barrier()
         dispatch_instance = (self._causal_lm_architecture, self._get_model_instance(model))
         generator = model_bridge.stream_weights_megatron_to_hf(
-            dispatch_instance, model, self.hf_pretrained, cpu=True, show_progress=show_progress
+            dispatch_instance,
+            model,
+            self.hf_pretrained,
+            cpu=True,
+            show_progress=show_progress,
+            merge_adapter_weights=merge_adapter_weights,
         )
 
         # Check if the state source is SafeTensorsStateSource for streaming save.
@@ -527,7 +569,11 @@ class AutoBridge(Generic[MegatronModelT]):
             dist.barrier()
 
     def save_megatron_model(
-        self, model: list[MegatronModule], path: str | Path, hf_tokenizer_path: Optional[str | Path] = None
+        self,
+        model: list[MegatronModule],
+        path: str | Path,
+        hf_tokenizer_path: Optional[str | Path] = None,
+        hf_tokenizer_kwargs: Optional[dict] = None,
     ) -> None:
         """
         Save a Megatron model in native Megatron checkpoint format without optimizer
@@ -543,6 +589,9 @@ class AutoBridge(Generic[MegatronModelT]):
             path: Directory path where the checkpoint will be saved
             hf_tokenizer_path: Optional HuggingFace model ID or path for tokenizer metadata.
                 If provided, the tokenizer metadata will be included in the checkpoint.
+            hf_tokenizer_kwargs: Optional dictionary of kwargs to pass to the HuggingFace tokenizer.
+                Common options include trust_remote_code=True for models with custom tokenizers,
+                or use_fast=True for models that require the fast tokenizer.
 
         Example:
             >>> # Save model checkpoint after conversion
@@ -564,7 +613,7 @@ class AutoBridge(Generic[MegatronModelT]):
             from megatron.bridge.training.model_load_save import save_megatron_model
         except ImportError:
             raise ImportError("megatron.bridge.training is not available.")
-        save_megatron_model(model, path, hf_tokenizer_path=hf_tokenizer_path)
+        save_megatron_model(model, path, hf_tokenizer_path=hf_tokenizer_path, hf_tokenizer_kwargs=hf_tokenizer_kwargs)
 
     def load_megatron_model(
         self, path: str | Path, *, mp_overrides: ModelParallelKwargs | None = None, **kwargs: Unpack[GetModelKwargs]
@@ -680,7 +729,12 @@ class AutoBridge(Generic[MegatronModelT]):
         megatron_model = bridge.to_megatron_model(wrap_with_ddp=False, use_cpu_initialization=True)
 
         # Save as Megatron checkpoint
-        bridge.save_megatron_model(megatron_model, megatron_path, hf_tokenizer_path=hf_model_id)
+        hf_tokenizer_kwargs = None
+        if hasattr(bridge._model_bridge, "get_hf_tokenizer_kwargs"):
+            hf_tokenizer_kwargs = bridge._model_bridge.get_hf_tokenizer_kwargs()
+        bridge.save_megatron_model(
+            megatron_model, megatron_path, hf_tokenizer_path=hf_model_id, hf_tokenizer_kwargs=hf_tokenizer_kwargs
+        )
 
     def export_ckpt(
         self,
