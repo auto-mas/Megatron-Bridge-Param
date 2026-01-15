@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from megatron.bridge.models.qwen.qwen2_moe_bridge import Qwen2MoEBridge  # noqa: F401
 from megatron.bridge.models.qwen.qwen2_bridge import Qwen2Bridge  # noqa: F401
 from megatron.bridge.models.qwen.qwen3_bridge import Qwen3Bridge  # noqa: F401
 from megatron.bridge.models.qwen.qwen3_moe_bridge import Qwen3MoEBridge  # noqa: F401
@@ -41,6 +41,7 @@ from megatron.bridge.models.qwen.qwen_provider import (
     Qwen25ModelProvider32B,
     Qwen25ModelProvider72B,
     Qwen25ModelProvider500M,
+    Qwen2MoEModelProvider,
 )
 
 
@@ -69,4 +70,5 @@ __all__ = [
     "Qwen3MoEModelProvider235B_A22B",
     "Qwen3NextModelProvider",
     "Qwen3NextModelProvider80B_A3B",
+    "Qwen2MoEModelProvider",
 ]

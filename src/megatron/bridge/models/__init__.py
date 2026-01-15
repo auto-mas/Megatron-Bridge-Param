@@ -13,6 +13,15 @@
 # limitations under the License.
 
 # Import model providers for easy access
+from megatron.bridge.models.mixtral import (
+    MixtralBridge,
+    MixtralModelProvider,
+)
+from megatron.bridge.models.qwen import (
+    Qwen2MoEModelProvider,)
+from megatron.bridge.models.param import (
+    BailingMoeV2ModelProvider,
+)
 from megatron.bridge.models.conversion.auto_bridge import AutoBridge
 from megatron.bridge.models.conversion.mapping_registry import MegatronMappingRegistry
 from megatron.bridge.models.conversion.model_bridge import MegatronModelBridge
@@ -366,4 +375,9 @@ __all__ = [
     "NemotronVLBridge",
     "NemotronNano12Bv2Provider",
     "NemotronNano12Bv2VLModelProvider",
+    # Mixtral Models
+    "MixtralBridge",
+    "MixtralModelProvider",
+    "Qwen2MoEModelProvider",
+    "BailingMoeV2ModelProvider",
 ]

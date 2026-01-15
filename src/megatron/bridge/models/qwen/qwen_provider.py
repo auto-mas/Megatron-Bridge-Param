@@ -355,6 +355,63 @@ class Qwen3ModelProvider32B(Qwen3ModelProvider):
 
 
 # =============================================================================
+# Qwen 2 MoE Model Provider (based on GPTProvider)
+# =============================================================================
+@dataclass
+class Qwen2MoEModelProvider(GPTModelProvider):
+    """Base provider for Qwen2 MoE Models."""
+
+    # ---- Core architecture ----
+    normalization: str = "RMSNorm"
+    activation_func: Callable = F.silu
+    gated_linear_unit: bool = True
+    add_bias_linear: bool = False
+    add_qkv_bias: bool = True
+    qk_layernorm: bool = False
+
+    # Attention
+    kv_channels: Optional[int] = None
+    num_query_groups: int = 16
+
+    # Sequence
+    seq_length: int = 8192
+    max_position_embeddings: int = 8192
+
+    # Init / dropout
+    init_method_std: float = 0.02
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+
+    # Vocab
+    vocab_size: int = 151936
+    share_embeddings_and_output_weights: Optional[bool] = False
+
+    # Norm / RoPE
+    layernorm_epsilon: float = 1e-6
+    rotary_base: float = 1_000_000.0
+    position_embedding_type: str = "rope"
+
+    # Precision
+    autocast_dtype: torch.dtype = torch.bfloat16
+    params_dtype: torch.dtype = torch.bfloat16
+    bf16: bool = True
+    moe_shared_expert_gate: bool = True  # Qwen3-Next uses a gate for the shared expert
+
+
+    # ---- MoE specific ----
+    num_moe_experts: int = 60
+    moe_ffn_hidden_size: int = 1408                     # routed expert
+    moe_shared_expert_intermediate_size: int = 5632     # 🔴 REQUIRED
+    moe_shared_expert_overlap: bool = True              # 🔴 REQUIRED
+    moe_router_topk: int = 4
+    moe_router_load_balancing_type: str = "aux_loss"
+    moe_aux_loss_coeff: float = 1e-3
+    moe_router_pre_softmax: bool = False
+    moe_grouped_gemm: bool = True
+    moe_token_dispatcher_type: str = "alltoall"
+    moe_permute_fusion: bool = True
+
+# =============================================================================
 # Qwen 3 MoE Model Provider (based on GPTProvider)
 # =============================================================================
 
